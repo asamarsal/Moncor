@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { BarChart3, CircleHelp, Settings, WalletCards } from 'lucide-react'
+import { ConnectButton } from '@rainbow-me/rainbowkit'
 
 export default function TopBar() {
   const pathname = usePathname()
@@ -26,9 +27,7 @@ export default function TopBar() {
         <button aria-label="Settings"><Settings size={16} /></button>
       </div>
       
-      <button className="wallet">
-        <WalletCards size={16} /> Connect Wallet
-      </button>
+      <ConnectButton />
     </header>
   )
 }
