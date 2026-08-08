@@ -10,6 +10,8 @@ import { useGameSelectionStore } from '@/stores/game-selection-store';
 import { mockMarketData } from '@/lib/market-data/mock-service';
 import { fetchMockQuote, QuoteResponse } from '@/lib/api/mock-quote';
 import { WagerMode } from '@/schemas/wager';
+import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { GameRouterABI } from '@/lib/abi/GameRouter';
 
 const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n))
 const priceText = (n: number) => n.toFixed(5)
@@ -64,6 +66,10 @@ function Chart({ price }: { price: number }) {
 }
 
 export default function Home() {
+  const { isConnected } = useAccount();
+  const { writeContract, data: txHash, isPending: isSubmitting } = useWriteContract();
+  const { isLoading: isWaitingTx, isSuccess: isTxSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+
   // Zustand Store
   const { mode, setMode, selection, setSelection, locked, setLocked, horizon, wagerAmount, setWagerAmount, reset } = useGameSelectionStore();
   
@@ -110,18 +116,53 @@ export default function Home() {
     }
     
     if (!selection) return;
+    if (!isConnected) {
+      alert("Please connect your wallet first.");
+      return;
+    }
 
     setIsLoadingQuote(true);
     try {
       const q = await fetchMockQuote(mode, horizon, wagerAmount);
       setQuote(q);
-      setLocked(true);
       
-      if (mode === 'fixed') {
-        const horizonSecs = q.settlementAt - q.startAt;
-        setSeconds(horizonSecs);
+      if (q.rawQuote && q.signature) {
+        // Parse wager amount safely
+        const value = BigInt(parseFloat(wagerAmount) * 1e18);
+
+        writeContract({
+          abi: GameRouterABI,
+          address: '0x0000000000000000000000000000000000000000', // DUMMY OR TESTNET ADDRESS
+          functionName: 'acceptQuote',
+          args: [
+            q.rawQuote,
+            q.signature
+          ],
+          value: value
+        }, {
+          onSuccess: () => {
+            setLocked(true);
+            if (mode === 'fixed') {
+              const horizonSecs = q.settlementAt - q.startAt;
+              setSeconds(horizonSecs);
+            } else {
+              setSeconds(18); // Default for variable demo
+            }
+          },
+          onError: (err) => {
+            console.error("Wallet rejected or failed", err);
+            alert("Transaction failed: " + err.message);
+          }
+        });
       } else {
-        setSeconds(18); // Default for variable demo
+        // Fallback for mock missing rawQuote
+        setLocked(true);
+        if (mode === 'fixed') {
+          const horizonSecs = q.settlementAt - q.startAt;
+          setSeconds(horizonSecs);
+        } else {
+          setSeconds(18);
+        }
       }
     } catch (err) {
       console.error(err);
@@ -244,10 +285,16 @@ export default function Home() {
             <button 
               className={`lock-prediction ${locked ? 'is-locked' : ''}`} 
               onClick={handleLockPrediction} 
-              disabled={!selection && !locked}
+              disabled={(!selection && !locked) || isLoadingQuote || isSubmitting || isWaitingTx}
             >
               <LockKeyhole size={16} /> 
-              {isLoadingQuote ? 'FETCHING QUOTE...' : (locked ? 'RESET DEMO ROUND' : 'LOCK PREDICTION')}
+              {isLoadingQuote ? 'FETCHING QUOTE...' 
+                : isSubmitting ? 'CONFIRM IN WALLET...'
+                : isWaitingTx ? 'WAITING FOR TX...'
+                : !isConnected ? 'CONNECT WALLET TO PLAY'
+                : locked ? 'RESET DEMO ROUND' 
+                : 'LOCK PREDICTION'
+              }
             </button>
             <p className="lock-note">{locked ? 'Prediction locked. Demo round in progress.' : 'Locks in your bet and starts the round.'}</p>
           </section>

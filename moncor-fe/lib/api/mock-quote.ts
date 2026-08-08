@@ -11,28 +11,37 @@ export interface QuoteResponse {
 }
 
 export const fetchMockQuote = async (mode: string, horizon: string | number, amount: string): Promise<QuoteResponse> => {
-  // Simulate network delay
-  await new Promise(r => setTimeout(r, 800));
+  try {
+    const res = await fetch(`http://localhost:8000/api/v1/quotes?mode=${mode}&horizon=${horizon}&amount=${amount}`);
+    if (!res.ok) {
+      throw new Error("Failed to fetch quote from backend");
+    }
+    return await res.json();
+  } catch (err) {
+    console.error("Backend fetch failed, using fallback mock", err);
+    // Simulate network delay
+    await new Promise(r => setTimeout(r, 800));
 
-  const now = Math.floor(Date.now() / 1000);
-  const horizonSeconds = typeof horizon === 'string' 
-    ? parseInt(horizon.replace('PT', '').replace('M', '')) * 60 
-    : horizon;
+    const now = Math.floor(Date.now() / 1000);
+    const horizonSeconds = typeof horizon === 'string' 
+      ? parseInt(horizon.replace('PT', '').replace('M', '')) * 60 
+      : horizon;
 
-  return {
-    quoteId: `mock-quote-${Math.random().toString(36).slice(2, 9)}`,
-    wagerAmount: (parseFloat(amount) * 1e18).toString(),
-    maxPayout: mode === 'fixed' ? (parseFloat(amount) * 10 * 1e18).toString() : (parseFloat(amount) * 5 * 1e18).toString(),
-    fee: "0",
-    issuedAt: now,
-    expiresAt: now + 30, // 30 seconds to lock
-    startAt: now + 5, // starts in 5s
-    settlementAt: now + 5 + horizonSeconds,
-    payoutLadder: mode === 'fixed' ? [
-      { place: '1st', multiplier: 10.0 },
-      { place: '2nd', multiplier: 4.0 },
-      { place: '3rd', multiplier: 2.0 },
-      { place: '4th - 10th', multiplier: 1.2 }
-    ] : undefined
-  };
+    return {
+      quoteId: `mock-quote-${Math.random().toString(36).slice(2, 9)}`,
+      wagerAmount: (parseFloat(amount) * 1e18).toString(),
+      maxPayout: mode === 'fixed' ? (parseFloat(amount) * 10 * 1e18).toString() : (parseFloat(amount) * 5 * 1e18).toString(),
+      fee: "0",
+      issuedAt: now,
+      expiresAt: now + 30, // 30 seconds to lock
+      startAt: now + 5, // starts in 5s
+      settlementAt: now + 5 + horizonSeconds,
+      payoutLadder: mode === 'fixed' ? [
+        { place: '1st', multiplier: 10.0 },
+        { place: '2nd', multiplier: 4.0 },
+        { place: '3rd', multiplier: 2.0 },
+        { place: '4th - 10th', multiplier: 1.2 }
+      ] : undefined
+    };
+  }
 };

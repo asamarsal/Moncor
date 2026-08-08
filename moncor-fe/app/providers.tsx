@@ -33,10 +33,17 @@ const monadMainnet = {
   },
 } as const;
 
+import { localhost } from 'wagmi/chains'
+
+const anvilLocalhost = {
+  ...localhost,
+  id: 10143, // Align with Monad Testnet id for local testing
+} as const;
+
 const config = getDefaultConfig({
   appName: 'MonCor',
-  projectId: 'YOUR_PROJECT_ID', // Disables WalletConnect cloud checks for local dev
-  chains: [monadTestnet, monadMainnet],
+  projectId: 'YOUR_PROJECT_ID',
+  chains: [anvilLocalhost, monadTestnet, monadMainnet],
   ssr: true,
 })
 
