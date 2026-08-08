@@ -1,61 +1,24 @@
 'use client'
 
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { BarChart3, CircleHelp, Settings, WalletCards } from 'lucide-react'
 
-function Sparkline({ points }: { points: number[] }) {
-  const path = points.map((point, index) => `${(index / (points.length - 1)) * 100},${100 - point * 78}`).join(' ')
-  return (
-    <svg className="sparkline" viewBox="0 0 100 100" preserveAspectRatio="none" aria-label="MON price movement">
-      <polyline points={path} fill="none" stroke="var(--neon)" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-    </svg>
-  )
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <span>{label}</span>
-      <b>{value}</b>
-    </div>
-  )
-}
-
 export default function TopBar() {
-  const price = 0.15638
-  const change = 0.01
+  const pathname = usePathname()
 
   return (
     <header className="topbar">
-      <div className="brand">
+      <Link href="/" className="brand hover:opacity-80 transition-opacity">
         <span className="brand-wave">⌁</span>
         <strong>Moncor</strong>
-      </div>
+      </Link>
       
-      <button className="chain-pill">
-        <span>◆</span> Monad
-      </button>
-      
-      <div className="pair">
-        MONAD <span>/ USD</span>
-      </div>
-      
-      <div className="hero-price">
-        ${price.toFixed(5)}
-      </div>
-      
-      <div className="change">
-        <span>24H CHANGE</span>
-        <b className={change >= 0 ? 'green' : 'red'}>+{change.toFixed(2)}%</b>
-      </div>
-      
-      <Sparkline points={[.4,.46,.43,.57,.52,.68,.72,.85]} />
-      
-      <div className="top-metrics">
-        <Metric label="24H HIGH" value="$0.15902" />
-        <Metric label="24H LOW" value="$0.15012" />
-        <Metric label="24H VOL" value="$18.42M" />
-        <Metric label="PLAYERS" value="2,643" />
-      </div>
+      <nav className="flex items-center gap-8 ml-4 mr-auto text-sm font-semibold text-[#858b93]">
+        <Link href="/play" className={`hover:text-white transition-colors ${pathname === '/play' ? 'text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.4)]' : ''}`}>Play</Link>
+        <Link href="/activity" className={`hover:text-white transition-colors ${pathname === '/activity' ? 'text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.4)]' : ''}`}>Activity</Link>
+        <Link href="/howitworks" className={`hover:text-white transition-colors ${pathname === '/howitworks' ? 'text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.4)]' : ''}`}>How it works</Link>
+      </nav>
       
       <div className="top-icons">
         <button aria-label="Analytics"><BarChart3 size={16} /></button>
@@ -69,3 +32,4 @@ export default function TopBar() {
     </header>
   )
 }
+
