@@ -240,7 +240,7 @@ export default function Home() {
                   </div>
                 </div>
                 <div className="matrix-title">MULTIPLIER GRID (Live)</div>
-                <Matrix locked={locked} select={handleSelect} activeColumn={activeColumn} price={price} />
+                <Matrix locked={locked} select={handleSelect} selection={selection} activeColumn={activeColumn} price={price} />
                 <div className="target-range">
                   <span>YOUR TARGET RANGE</span>
                   <div>
@@ -260,7 +260,7 @@ export default function Home() {
             <span>YOUR SELECTION</span>
             <div className="selection-box">
               <small>TARGET RANGE</small>
-              <strong>{selection || 'None'}</strong>
+              <strong>{selection ? (selection.split(':')[2] ? `${selection.split(':')[2]} target` : selection) : 'None'}</strong>
               <button type="button">⌕ Adjust Range</button>
             </div>
             <div className="bet-amount">
