@@ -35,7 +35,7 @@ const monadMainnet = {
 
 const config = getDefaultConfig({
   appName: 'MonCor',
-  projectId: 'a589eb86e41b9e075841793739fa4f59', // Dummy Project ID
+  projectId: '3fcc6bba6f1de962d911bb5b5c3dba68', // Public test ID (no domain allowlist)
   chains: [monadTestnet, monadMainnet],
   ssr: true,
 })
