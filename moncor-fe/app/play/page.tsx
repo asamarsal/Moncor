@@ -51,7 +51,7 @@ import { LightweightFallback } from "@/components/chart/lightweight-fallback";
 function Chart({ price }: { price: number }) {
   return (
     <div className="mini-chart" style={{ height: 'auto', minHeight: '340px' }}>
-      <div className="chart-label mb-2">LIVE PRICE PATH <span>ETH / USD · SHARED FEED</span></div>
+      <div className="chart-label mb-2">LIVE PRICE PATH <span>MON / USDT · SHARED FEED</span></div>
       <LightweightFallback price={price} />
     </div>
   )
@@ -69,36 +69,30 @@ export default function Home() {
   const { mode, setMode, selection, setSelection, locked, setLocked, horizon, setHorizon, wagerAmount, setWagerAmount, reset } = useGameSelectionStore();
   
   // Local Presentation State
-  const [price, setPrice] = useState(2805.00);
+  const [price, setPrice] = useState(0.02);
   const [seconds, setSeconds] = useState(18);
   const [activeColumn, setActiveColumn] = useState(0);
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
   const [isLoadingQuote, setIsLoadingQuote] = useState(false);
 
-  // Sync with Realtime Live Market Data (Binance WebSocket + Coinbase REST)
+  // Sync with Realtime Live Market Data for MON_USDT
   useEffect(() => {
-    fetch("https://api.exchange.coinbase.com/products/ETH-USD/ticker")
-      .then(res => res.json())
-      .then(d => {
-        if (d && d.price) setPrice(Number.parseFloat(d.price));
-      })
-      .catch(() => {});
-
-    let ws: WebSocket | null = null;
-    try {
-      ws = new WebSocket("wss://stream.binance.com:9443/ws/ethusdt@ticker");
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data && data.c) {
-            setPrice(Number.parseFloat(data.c));
+    const fetchPrice = () => {
+      fetch("https://api.gateio.ws/api/v4/spot/tickers?currency_pair=MON_USDT")
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.length > 0 && data[0].last) {
+            setPrice(Number.parseFloat(data[0].last));
           }
-        } catch {}
-      };
-    } catch {}
+        })
+        .catch(() => {});
+    };
+
+    fetchPrice(); // initial fetch
+    const timer = setInterval(fetchPrice, 1000); // 1 detik sekali
 
     return () => {
-      if (ws) ws.close();
+      clearInterval(timer);
     };
   }, []);
 
@@ -229,7 +223,7 @@ export default function Home() {
                   <button type="button" className={horizon === 'PT5M' ? 'active' : ''} onClick={() => setHorizon('PT5M')}>5 MINUTES</button>
                   <button type="button" className={horizon === 'PT10M' ? 'active' : ''} onClick={() => setHorizon('PT10M')}>10 MINUTES</button>
                 </div>
-                <FixedBoard price={price} locked={locked} select={handleSelect} />
+                <FixedBoard price={price} locked={locked} select={handleSelect} selection={selection} />
               </section>
             )}
             {mode === 'variable' && (

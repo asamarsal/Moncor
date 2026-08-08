@@ -79,21 +79,20 @@ export function LightweightFallback({ price }: { price: number }) {
     const resizeObserver = new ResizeObserver(handleResize);
     resizeObserver.observe(chartContainerRef.current);
 
-    // 1. Fetch live historical candles from Coinbase API (CORS-friendly for browsers)
-    fetch("https://api.exchange.coinbase.com/products/ETH-USD/candles?granularity=60")
+    // 1. Fetch live historical candles from Gate.io API
+    fetch("https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=MON_USDT&interval=1m&limit=100")
       .then((res) => {
-        if (!res.ok) throw new Error("Coinbase fetch failed");
+        if (!res.ok) throw new Error("Gate.io fetch failed");
         return res.json();
       })
       .then((data) => {
-        // Coinbase returns [ [ time, low, high, open, close, volume ], ... ] sorted descending
-        const sorted = data.slice(0, 100).reverse();
-        const formattedData = sorted.map((item: number[]) => ({
-          time: item[0] as Time,
-          open: item[3],
-          high: item[2],
-          low: item[1],
-          close: item[4],
+        // Gate.io returns [ [ timestamp, quote_volume, close, high, low, open, base_volume ], ... ] sorted ascending
+        const formattedData = data.map((item: string[]) => ({
+          time: parseInt(item[0], 10) as Time,
+          open: Number.parseFloat(item[5]),
+          high: Number.parseFloat(item[3]),
+          low: Number.parseFloat(item[4]),
+          close: Number.parseFloat(item[2]),
         }));
         candlestickSeries.setData(formattedData);
         chart.timeScale().fitContent();
@@ -106,16 +105,17 @@ export function LightweightFallback({ price }: { price: number }) {
         // Fallback: If network/adblocker blocks external API, generate real-time live OHLC stream locally
         const now = Math.floor(Date.now() / 1000);
         const basePrice = initialPriceRef.current;
+        const volatility = basePrice > 100 ? 12.0 : (basePrice * 0.02); // 2% volatility
         const initialData = [];
         for (let i = 99; i >= 0; i--) {
           const t = now - (i * 60);
-          const open = basePrice + Math.sin(i / 5.0) * 12.0;
-          const close = open + Math.cos(i / 3.0) * 6.0;
+          const open = basePrice + Math.sin(i / 5.0) * volatility;
+          const close = open + Math.cos(i / 3.0) * (volatility / 2);
           initialData.push({
             time: t as Time,
             open,
-            high: Math.max(open, close) + 3.0,
-            low: Math.min(open, close) - 3.0,
+            high: Math.max(open, close) + (volatility / 4),
+            low: Math.min(open, close) - (volatility / 4),
             close,
           });
         }
