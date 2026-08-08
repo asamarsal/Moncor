@@ -55,7 +55,8 @@ function assert(value, label) { if (!value) fail(`Runtime verification failed: $
 
 async function main() {
   const env = loadEnv(path.join(root, '.env'));
-  const privateKey = required(env, 'PRIVATE_KEY');
+  const rawPrivateKey = required(env, 'PRIVATE_KEY');
+  const privateKey = rawPrivateKey.startsWith('0x') ? rawPrivateKey : `0x${rawPrivateKey}`;
   if (!/^0x[0-9a-fA-F]{64}$/.test(privateKey) || /^0x0{64}$/i.test(privateKey)) fail('Invalid PRIVATE_KEY format');
   const rpcUrl = required(env, 'MONAD_RPC_URL');
   let rpc;
