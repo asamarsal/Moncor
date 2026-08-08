@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Clock3, LockKeyhole, Trophy, Zap } from 'lucide-react'
 import TopBar from "@/components/TopBar";
 import Footer from "@/components/Footer";
@@ -9,7 +9,6 @@ import { Matrix } from "@/components/game/variable-matrix";
 import { useGameSelectionStore } from '@/stores/game-selection-store';
 import { mockMarketData } from '@/lib/market-data/mock-service';
 import { fetchMockQuote, QuoteResponse } from '@/lib/api/mock-quote';
-import { WagerMode } from '@/schemas/wager';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { GameRouterABI } from '@/lib/abi/GameRouter';
 
@@ -51,16 +50,13 @@ function LeftRail() {
   )
 }
 
-function Chart({ price }: { price: number }) {
+import { LightweightFallback } from "@/components/chart/lightweight-fallback";
+
+function Chart() {
   return (
-    <div className="mini-chart">
-      <div className="chart-label">LIVE PRICE PATH <span>MON / USD</span></div>
-      <div className="chart-area">
-        <svg viewBox="0 0 500 150" preserveAspectRatio="none">
-          <polyline points="0,105 30,67 57,70 85,105 115,95 145,112 176,108 205,138 245,118 275,115 306,84 345,90 378,70 410,84 445,62 500,78" fill="none" stroke="var(--violet)" strokeWidth="2" />
-        </svg>
-        <b>{priceText(price)}</b>
-      </div>
+    <div className="mini-chart" style={{ height: 'auto', minHeight: '340px' }}>
+      <div className="chart-label mb-2">LIVE PRICE PATH <span>MON / USD</span></div>
+      <LightweightFallback />
     </div>
   )
 }
@@ -68,7 +64,7 @@ function Chart({ price }: { price: number }) {
 export default function Home() {
   const { isConnected } = useAccount();
   const { writeContract, data: txHash, isPending: isSubmitting } = useWriteContract();
-  const { isLoading: isWaitingTx, isSuccess: isTxSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+  const { isLoading: isWaitingTx } = useWaitForTransactionReceipt({ hash: txHash });
 
   // Zustand Store
   const { mode, setMode, selection, setSelection, locked, setLocked, horizon, wagerAmount, setWagerAmount, reset } = useGameSelectionStore();
@@ -85,7 +81,7 @@ export default function Home() {
     const unsubscribe = mockMarketData.subscribe((newPrice) => {
       setPrice(newPrice);
     });
-    return () => unsubscribe();
+    return () => { unsubscribe(); };
   }, []);
 
   // Visual timers
@@ -101,7 +97,6 @@ export default function Home() {
     return () => clearInterval(timer)
   }, [locked])
 
-  const change = useMemo(() => ((price - .15637) / .15637) * 100, [price])
   
   const handleSelect = (value: string) => { 
     setSelection(value); 
@@ -128,15 +123,16 @@ export default function Home() {
       
       if (q.rawQuote && q.signature) {
         // Parse wager amount safely
-        const value = BigInt(parseFloat(wagerAmount) * 1e18);
+        const value = BigInt(Number.parseFloat(wagerAmount) * 1e18);
 
         writeContract({
           abi: GameRouterABI,
           address: '0x0000000000000000000000000000000000000000', // DUMMY OR TESTNET ADDRESS
           functionName: 'acceptQuote',
           args: [
-            q.rawQuote,
-            q.signature
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (typeof q.rawQuote === 'string' ? JSON.parse(q.rawQuote) : q.rawQuote) as any,
+            q.signature as `0x${string}`
           ],
           value: value
         }, {
@@ -171,6 +167,15 @@ export default function Home() {
     }
   }
 
+  const getButtonLabel = () => {
+    if (isLoadingQuote) return 'FETCHING QUOTE...';
+    if (isSubmitting) return 'CONFIRM IN WALLET...';
+    if (isWaitingTx) return 'WAITING FOR TX...';
+    if (!isConnected) return 'CONNECT WALLET TO PLAY';
+    if (locked) return 'RESET DEMO ROUND';
+    return 'LOCK PREDICTION';
+  };
+
   return (
     <main className="terminal-shell flex flex-col min-h-screen">
       <TopBar />
@@ -180,12 +185,12 @@ export default function Home() {
 
         <section className="main-stage">
           <div className="mode-tabs">
-            <button className={mode === 'fixed' ? 'active fixed-active' : ''} onClick={() => { setMode('fixed'); reset(); setQuote(null); }}>
+            <button type="button" className={mode === 'fixed' ? 'active fixed-active' : ''} onClick={() => { setMode('fixed'); reset(); setQuote(null); }}>
               <span className="mode-icon">◷</span>
               <strong>FIXED TIME<small>Round duration is fixed</small></strong>
               <em>STRUCTURED</em>
             </button>
-            <button className={mode === 'variable' ? 'active variable-active' : ''} onClick={() => { setMode('variable'); reset(); setQuote(null); }}>
+            <button type="button" className={mode === 'variable' ? 'active variable-active' : ''} onClick={() => { setMode('variable'); reset(); setQuote(null); }}>
               <span className="mode-icon">ϟ</span>
               <strong>VARIABLE TIME<small>Time is not fixed · Minimum 10 seconds</small></strong>
               <em>DYNAMIC</em>
@@ -214,7 +219,7 @@ export default function Home() {
                   </div>
                 </div>
                 <div className="duration">
-                  <button>1 MINUTE</button><button>5 MINUTES</button><button>10 MINUTES</button>
+                  <button type="button">1 MINUTE</button><button type="button">5 MINUTES</button><button type="button">10 MINUTES</button>
                 </div>
                 <FixedBoard price={price} locked={locked} select={handleSelect} />
               </section>
@@ -245,27 +250,27 @@ export default function Home() {
             )}
           </div>
 
-          <Chart price={price} />
+          <Chart />
         </section>
 
         <aside className="right-rail">
           <section className="mode-card">
             <span>GAME MODE</span>
             <b>{mode === 'fixed' ? 'FIXED TIME' : 'VARIABLE TIME'}</b>
-            <button onClick={() => { setMode(mode === 'fixed' ? 'variable' : 'fixed'); reset(); setQuote(null); }}>Change Mode</button>
+            <button type="button" onClick={() => { setMode(mode === 'fixed' ? 'variable' : 'fixed'); reset(); setQuote(null); }}>Change Mode</button>
           </section>
           <section className="selection-card">
             <span>YOUR SELECTION</span>
             <div className="selection-box">
               <small>TARGET RANGE</small>
               <strong>{selection || 'None'}</strong>
-              <button>⌕ Adjust Range</button>
+              <button type="button">⌕ Adjust Range</button>
             </div>
             <div className="bet-amount">
               <span>BET AMOUNT <small>BALANCE ◇ 125.80</small></span>
               <div>
                 {['10', '25', '50', 'MAX'].map((amt) => (
-                  <button 
+                  <button type="button" 
                     key={amt} 
                     className={wagerAmount === amt ? 'selected' : ''} 
                     onClick={() => setWagerAmount(amt)}
@@ -275,26 +280,20 @@ export default function Home() {
                 ))}
               </div>
               <strong>◇ {wagerAmount} <small>MON</small></strong>
-              <em>≈ ${(parseFloat(wagerAmount || '0') * 0.156).toFixed(2)} USD</em>
+              <em>≈ ${(Number.parseFloat(wagerAmount || '0') * 0.156).toFixed(2)} USD</em>
             </div>
             <div className="estimated">
               <span>ESTIMATED PAYOUT</span>
-              <b>{quote ? `${(parseFloat(quote.maxPayout) / 1e18 / parseFloat(wagerAmount)).toFixed(2)}x` : '—'}</b>
-              <small>{quote ? `≈ ${parseFloat(quote.maxPayout) / 1e18} MON` : ''}</small>
+              <b>{quote ? `${(Number.parseFloat(quote.maxPayout) / 1e18 / Number.parseFloat(wagerAmount)).toFixed(2)}x` : '—'}</b>
+              <small>{quote ? `≈ ${Number.parseFloat(quote.maxPayout) / 1e18} MON` : ''}</small>
             </div>
-            <button 
+            <button type="button"
               className={`lock-prediction ${locked ? 'is-locked' : ''}`} 
               onClick={handleLockPrediction} 
               disabled={(!selection && !locked) || isLoadingQuote || isSubmitting || isWaitingTx}
             >
               <LockKeyhole size={16} /> 
-              {isLoadingQuote ? 'FETCHING QUOTE...' 
-                : isSubmitting ? 'CONFIRM IN WALLET...'
-                : isWaitingTx ? 'WAITING FOR TX...'
-                : !isConnected ? 'CONNECT WALLET TO PLAY'
-                : locked ? 'RESET DEMO ROUND' 
-                : 'LOCK PREDICTION'
-              }
+              {getButtonLabel()}
             </button>
             <p className="lock-note">{locked ? 'Prediction locked. Demo round in progress.' : 'Locks in your bet and starts the round.'}</p>
           </section>

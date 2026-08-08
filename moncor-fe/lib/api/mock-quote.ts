@@ -8,6 +8,8 @@ export interface QuoteResponse {
   startAt: number;
   settlementAt: number;
   payoutLadder?: Array<{ place: string, multiplier: number }>;
+  rawQuote?: string;
+  signature?: string;
 }
 
 export const fetchMockQuote = async (mode: string, horizon: string | number, amount: string): Promise<QuoteResponse> => {

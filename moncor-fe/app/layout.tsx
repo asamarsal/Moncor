@@ -18,6 +18,7 @@ export const metadata: Metadata = {
 };
 
 import { Providers } from './providers';
+import { TelemetryProvider } from '@/components/providers/telemetry-provider';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -27,7 +28,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       <body className="min-h-full flex flex-col">
         <Providers>
-          {children}
+          <TelemetryProvider>
+            {children}
+          </TelemetryProvider>
         </Providers>
       </body>
     </html>
