@@ -11,12 +11,36 @@ interface LiveCandle {
   close: number;
 }
 
+function updateLiveCandle(
+  series: ISeriesApi<"Candlestick">,
+  candleRef: React.MutableRefObject<LiveCandle | null>,
+  price: number,
+) {
+  if (!Number.isFinite(price) || price <= 0) return;
+
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const bucket = (Math.floor(nowSeconds / 60) * 60) as Time;
+  const current = candleRef.current;
+  const next: LiveCandle = !current || current.time !== bucket
+    ? { time: bucket, open: price, high: price, low: price, close: price }
+    : {
+        ...current,
+        high: Math.max(current.high, price),
+        low: Math.min(current.low, price),
+        close: price,
+      };
+
+  candleRef.current = next;
+  series.update(next);
+}
+
 export function LightweightFallback({ price }: { price: number }) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const liveCandleRef = useRef<LiveCandle | null>(null);
   const initialPriceRef = useRef(price);
+  const latestPriceRef = useRef(price);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
@@ -75,6 +99,7 @@ export function LightweightFallback({ price }: { price: number }) {
         chart.timeScale().fitContent();
         const latest = formattedData.at(-1);
         if (latest) liveCandleRef.current = latest;
+        updateLiveCandle(candlestickSeries, liveCandleRef, latestPriceRef.current);
         setLoading(false);
       })
       .catch(() => {
@@ -97,6 +122,7 @@ export function LightweightFallback({ price }: { price: number }) {
         candlestickSeries.setData(initialData);
         chart.timeScale().fitContent();
         liveCandleRef.current = initialData.at(-1) ?? null;
+        updateLiveCandle(candlestickSeries, liveCandleRef, latestPriceRef.current);
         setError(false);
         setLoading(false);
       });
@@ -110,23 +136,10 @@ export function LightweightFallback({ price }: { price: number }) {
   // The chart and RaceBoard consume the exact same realtime price prop.
   // This aggregation is visual only and never determines settlement.
   useEffect(() => {
+    latestPriceRef.current = price;
     const series = seriesRef.current;
     if (!series || !Number.isFinite(price) || price <= 0) return;
-
-    const nowSeconds = Math.floor(Date.now() / 1000);
-    const bucket = (Math.floor(nowSeconds / 60) * 60) as Time;
-    const current = liveCandleRef.current;
-    const next: LiveCandle = !current || current.time !== bucket
-      ? { time: bucket, open: price, high: price, low: price, close: price }
-      : {
-          ...current,
-          high: Math.max(current.high, price),
-          low: Math.min(current.low, price),
-          close: price,
-        };
-
-    liveCandleRef.current = next;
-    series.update(next);
+    updateLiveCandle(series, liveCandleRef, price);
   }, [price]);
 
   return (

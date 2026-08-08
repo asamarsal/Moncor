@@ -66,7 +66,7 @@ export default function Home() {
   const userBalance = balanceData ? Number.parseFloat(balanceData.formatted).toFixed(2) : '0.00';
 
   // Zustand Store
-  const { mode, setMode, selection, setSelection, locked, setLocked, horizon, wagerAmount, setWagerAmount, reset } = useGameSelectionStore();
+  const { mode, setMode, selection, setSelection, locked, setLocked, horizon, setHorizon, wagerAmount, setWagerAmount, reset } = useGameSelectionStore();
   
   // Local Presentation State
   const [price, setPrice] = useState(2805.00);
@@ -148,12 +148,12 @@ export default function Home() {
             address: '0x7A2b56788880A123Cde147987823e59b90875b2F',
             functionName: 'acceptQuote',
             args: [
-              (typeof q.rawQuote === 'string' ? JSON.parse(q.rawQuote) : q.rawQuote) as any,
+              typeof q.rawQuote === 'string' ? JSON.parse(q.rawQuote) : q.rawQuote,
               q.signature as `0x${string}`
             ],
             value: value
           });
-        } catch (err: any) {
+        } catch (err: unknown) {
           console.warn("Wallet execution notice:", err);
         }
       }
@@ -225,7 +225,9 @@ export default function Home() {
                   </div>
                 </div>
                 <div className="duration">
-                  <button type="button">1 MINUTE</button><button type="button">5 MINUTES</button><button type="button">10 MINUTES</button>
+                  <button type="button" className={horizon === 'PT1M' ? 'active' : ''} onClick={() => setHorizon('PT1M')}>1 MINUTE</button>
+                  <button type="button" className={horizon === 'PT5M' ? 'active' : ''} onClick={() => setHorizon('PT5M')}>5 MINUTES</button>
+                  <button type="button" className={horizon === 'PT10M' ? 'active' : ''} onClick={() => setHorizon('PT10M')}>10 MINUTES</button>
                 </div>
                 <FixedBoard price={price} locked={locked} select={handleSelect} />
               </section>

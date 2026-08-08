@@ -1,3 +1,27 @@
+export interface RawContractQuote {
+  quoteId: `0x${string}`;
+  nonce: bigint;
+  wallet: `0x${string}`;
+  asset: `0x${string}`;
+  marketId: `0x${string}`;
+  policyId: `0x${string}`;
+  policyVersion: bigint;
+  signerSetVersion: bigint;
+  issuedAt: bigint;
+  expiresAt: bigint;
+  startAt: bigint;
+  settlementAt: bigint;
+  refundAvailableAt: bigint;
+  stake: bigint;
+  maxPayout: bigint;
+  fee: bigint;
+  targetPrice: bigint;
+  priceScale: number;
+  horizonSeconds: number;
+  mode: number;
+  selection: number;
+}
+
 export interface QuoteResponse {
   quoteId: string;
   wagerAmount: string; // minor units as string
@@ -8,7 +32,7 @@ export interface QuoteResponse {
   startAt: number;
   settlementAt: number;
   payoutLadder?: Array<{ place: string, multiplier: number }>;
-  rawQuote?: string;
+  rawQuote?: string | RawContractQuote;
   signature?: string;
 }
 
