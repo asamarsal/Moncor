@@ -22,7 +22,7 @@ export const useGameSelectionStore = create<GameSelectionState>((set) => ({
   mode: 'fixed',
   horizon: 'PT1M', // default 1 minute for fixed
   selection: '',
-  wagerAmount: '50', // Default 50 MON
+  wagerAmount: '0.1', // Default 0.1 MON
   locked: false,
   secondsRemaining: 0,
   

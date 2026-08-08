@@ -33,17 +33,10 @@ const monadMainnet = {
   },
 } as const;
 
-import { localhost } from 'wagmi/chains'
-
-const anvilLocalhost = {
-  ...localhost,
-  id: 10143, // Align with Monad Testnet id for local testing
-} as const;
-
 const config = getDefaultConfig({
   appName: 'MonCor',
   projectId: 'YOUR_PROJECT_ID',
-  chains: [anvilLocalhost, monadTestnet, monadMainnet],
+  chains: [monadTestnet, monadMainnet],
   ssr: true,
 })
 
