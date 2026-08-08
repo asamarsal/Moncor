@@ -35,7 +35,7 @@ const monadMainnet = {
 
 const config = getDefaultConfig({
   appName: 'MonCor',
-  projectId: '3fcc6bba6f1de962d911bb5b5c3dba68', // Public test ID (no domain allowlist)
+  projectId: 'YOUR_PROJECT_ID', // Disables WalletConnect cloud checks for local dev
   chains: [monadTestnet, monadMainnet],
   ssr: true,
 })

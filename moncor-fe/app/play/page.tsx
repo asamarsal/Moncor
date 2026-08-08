@@ -1,11 +1,16 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Activity, Clock3, LockKeyhole, ShieldCheck, Trophy, Zap } from 'lucide-react'
+import { Clock3, LockKeyhole, Trophy, Zap } from 'lucide-react'
 import TopBar from "@/components/TopBar";
 import Footer from "@/components/Footer";
+import { FixedBoard } from "@/components/game/fixed-board";
+import { Matrix } from "@/components/game/variable-matrix";
+import { useGameSelectionStore } from '@/stores/game-selection-store';
+import { mockMarketData } from '@/lib/market-data/mock-service';
+import { fetchMockQuote, QuoteResponse } from '@/lib/api/mock-quote';
+import { WagerMode } from '@/schemas/wager';
 
-type Mode = 'fixed' | 'variable'
 const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n))
 const priceText = (n: number) => n.toFixed(5)
 
@@ -44,60 +49,6 @@ function LeftRail() {
   )
 }
 
-function FixedBoard({ price, locked, select }: { price: number; locked: boolean; select: (x: string) => void }) {
-  return (
-    <div className="fixed-board">
-      <div className="board-title">
-        <span>RACE BOARD</span>
-        <span>ROUND ENDS IN <b>{locked ? '00:28' : '00:42'}</b></span>
-      </div>
-      {Array.from({ length: 10 }, (_, i) => {
-        const p = price + (i - 5) * .00025;
-        return (
-          <button disabled={locked} onClick={() => select(`Target ${priceText(p)}`)} className={`race-row ${i === 5 ? 'active' : ''}`} key={i}>
-            <b>{p.toFixed(3)}</b>
-            <span className="race-track">
-              <i style={{ width: `${39 + ((i * 13) % 34)}%` }} /><em />
-            </span>
-            <small>{i === 5 ? '›' : ''}</small>
-          </button>
-        )
-      })}
-      <div className="legend">
-        <span><i /> You</span><span><i /> Other Players</span><span>▧ Finish Line</span>
-      </div>
-    </div>
-  )
-}
-
-function Matrix({ locked, select, activeColumn, price }: { locked: boolean; select: (x: string) => void; activeColumn: number; price: number }) {
-  const values = ['1.1x', '1.2x', '1.3x', '1.4x', '1.6x', '1.8x', '2.8x', '3.6x', '5.6x', '8.0x']
-  const times = ['0s', '+2s', '+4s', '+6s', '+8s', '+12s', '+14s', '+18s', '+22s', '+26s', '+30s']
-  return (
-    <div className="matrix">
-      <div className="matrix-cursor" style={{ left: `${((activeColumn + 1) / 11) * 100}%` }} aria-hidden="true" />
-      <div className="price-marker" style={{ top: `${58 + activeColumn * 3}%` }}>
-        <span>{priceText(price)}</span><small>LIVE</small>
-      </div>
-      <div className="matrix-row matrix-head">
-        {times.map((x, i) => <span className={i === activeColumn + 1 ? 'time-active' : ''} key={x}>{x}</span>)}
-      </div>
-      {Array.from({ length: 9 }, (_, row) => (
-        <div className="matrix-row" key={row}>
-          <b>{values[row]}</b>
-          {Array.from({ length: 10 }, (_, col) => {
-            const v = values[(row + col + 2) % values.length];
-            const isActive = col === activeColumn || col === (activeColumn + 1) % 10;
-            return (
-              <button disabled={locked} className={`odds tone-${(row + col) % 5} ${isActive ? 'odds-active' : ''}`} onClick={() => select(`${v} target range`)} key={col}>{v}</button>
-            )
-          })}
-        </div>
-      ))}
-    </div>
-  )
-}
-
 function Chart({ price }: { price: number }) {
   return (
     <div className="mini-chart">
@@ -113,18 +64,25 @@ function Chart({ price }: { price: number }) {
 }
 
 export default function Home() {
-  const [mode, setMode] = useState<Mode>('fixed');
+  // Zustand Store
+  const { mode, setMode, selection, setSelection, locked, setLocked, horizon, wagerAmount, setWagerAmount, reset } = useGameSelectionStore();
+  
+  // Local Presentation State
   const [price, setPrice] = useState(.15637);
-  const [locked, setLocked] = useState(false);
-  const [selection, setSelection] = useState('1.50x – 3.50x');
   const [seconds, setSeconds] = useState(18);
-  const [activeColumn, setActiveColumn] = useState(0)
+  const [activeColumn, setActiveColumn] = useState(0);
+  const [quote, setQuote] = useState<QuoteResponse | null>(null);
+  const [isLoadingQuote, setIsLoadingQuote] = useState(false);
 
+  // Sync with Mock Market Data
   useEffect(() => {
-    const timer = setInterval(() => setPrice(p => clamp(p + (Math.random() - .48) * .00011, .15012, .15982)), 1400);
-    return () => clearInterval(timer)
-  }, [])
+    const unsubscribe = mockMarketData.subscribe((newPrice) => {
+      setPrice(newPrice);
+    });
+    return () => unsubscribe();
+  }, []);
 
+  // Visual timers
   useEffect(() => {
     if (mode !== 'variable' || locked) return;
     const timer = setInterval(() => setActiveColumn(c => (c + 1) % 10), 900);
@@ -138,8 +96,39 @@ export default function Home() {
   }, [locked])
 
   const change = useMemo(() => ((price - .15637) / .15637) * 100, [price])
-  const select = (value: string) => { setSelection(value); setLocked(true); setSeconds(18) }
-  const reset = () => { setLocked(false); setSelection('1.50x – 3.50x'); setSeconds(18) }
+  
+  const handleSelect = (value: string) => { 
+    setSelection(value); 
+  }
+  
+  const handleLockPrediction = async () => {
+    if (locked) {
+      reset();
+      setQuote(null);
+      setSeconds(18);
+      return;
+    }
+    
+    if (!selection) return;
+
+    setIsLoadingQuote(true);
+    try {
+      const q = await fetchMockQuote(mode, horizon, wagerAmount);
+      setQuote(q);
+      setLocked(true);
+      
+      if (mode === 'fixed') {
+        const horizonSecs = q.settlementAt - q.startAt;
+        setSeconds(horizonSecs);
+      } else {
+        setSeconds(18); // Default for variable demo
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoadingQuote(false);
+    }
+  }
 
   return (
     <main className="terminal-shell flex flex-col min-h-screen">
@@ -150,12 +139,12 @@ export default function Home() {
 
         <section className="main-stage">
           <div className="mode-tabs">
-            <button className={mode === 'fixed' ? 'active fixed-active' : ''} onClick={() => { setMode('fixed'); reset() }}>
+            <button className={mode === 'fixed' ? 'active fixed-active' : ''} onClick={() => { setMode('fixed'); reset(); setQuote(null); }}>
               <span className="mode-icon">◷</span>
               <strong>FIXED TIME<small>Round duration is fixed</small></strong>
               <em>STRUCTURED</em>
             </button>
-            <button className={mode === 'variable' ? 'active variable-active' : ''} onClick={() => { setMode('variable'); reset() }}>
+            <button className={mode === 'variable' ? 'active variable-active' : ''} onClick={() => { setMode('variable'); reset(); setQuote(null); }}>
               <span className="mode-icon">ϟ</span>
               <strong>VARIABLE TIME<small>Time is not fixed · Minimum 10 seconds</small></strong>
               <em>DYNAMIC</em>
@@ -172,13 +161,21 @@ export default function Home() {
                   </div>
                   <div className="payout">
                     <span>PAYOUT LADDER</span>
-                    <b>1st Place <i>10.00x</i></b><b>2nd Place <i>4.00x</i></b><b>3rd Place <i>2.00x</i></b><b>4th – 10th <i>1.20x</i></b>
+                    {quote?.payoutLadder ? (
+                      quote.payoutLadder.map((l) => (
+                        <b key={l.place}>{l.place} <i>{l.multiplier.toFixed(2)}x</i></b>
+                      ))
+                    ) : (
+                      <>
+                        <b>1st Place <i>10.00x</i></b><b>2nd Place <i>4.00x</i></b><b>3rd Place <i>2.00x</i></b><b>4th – 10th <i>1.20x</i></b>
+                      </>
+                    )}
                   </div>
                 </div>
                 <div className="duration">
                   <button>1 MINUTE</button><button>5 MINUTES</button><button>10 MINUTES</button>
                 </div>
-                <FixedBoard price={price} locked={locked} select={select} />
+                <FixedBoard price={price} locked={locked} select={handleSelect} />
               </section>
             )}
             {mode === 'variable' && (
@@ -195,7 +192,7 @@ export default function Home() {
                   </div>
                 </div>
                 <div className="matrix-title">MULTIPLIER GRID (Live)</div>
-                <Matrix locked={locked} select={select} activeColumn={activeColumn} price={price} />
+                <Matrix locked={locked} select={handleSelect} activeColumn={activeColumn} price={price} />
                 <div className="target-range">
                   <span>YOUR TARGET RANGE</span>
                   <div>
@@ -214,30 +211,43 @@ export default function Home() {
           <section className="mode-card">
             <span>GAME MODE</span>
             <b>{mode === 'fixed' ? 'FIXED TIME' : 'VARIABLE TIME'}</b>
-            <button onClick={() => { setMode(mode === 'fixed' ? 'variable' : 'fixed'); reset() }}>Change Mode</button>
+            <button onClick={() => { setMode(mode === 'fixed' ? 'variable' : 'fixed'); reset(); setQuote(null); }}>Change Mode</button>
           </section>
           <section className="selection-card">
             <span>YOUR SELECTION</span>
             <div className="selection-box">
               <small>TARGET RANGE</small>
-              <strong>{selection}</strong>
+              <strong>{selection || 'None'}</strong>
               <button>⌕ Adjust Range</button>
             </div>
             <div className="bet-amount">
               <span>BET AMOUNT <small>BALANCE ◇ 125.80</small></span>
               <div>
-                <button>10</button><button>25</button><button className="selected">50</button><button>MAX</button>
+                {['10', '25', '50', 'MAX'].map((amt) => (
+                  <button 
+                    key={amt} 
+                    className={wagerAmount === amt ? 'selected' : ''} 
+                    onClick={() => setWagerAmount(amt)}
+                  >
+                    {amt}
+                  </button>
+                ))}
               </div>
-              <strong>◇ 50 <small>MON</small></strong>
-              <em>≈ $7.82 USD</em>
+              <strong>◇ {wagerAmount} <small>MON</small></strong>
+              <em>≈ ${(parseFloat(wagerAmount || '0') * 0.156).toFixed(2)} USD</em>
             </div>
             <div className="estimated">
               <span>ESTIMATED PAYOUT</span>
-              <b>{locked ? '2.35x' : '—'}</b>
-              <small>≈ 117.50 MON ($18.42)</small>
+              <b>{quote ? `${(parseFloat(quote.maxPayout) / 1e18 / parseFloat(wagerAmount)).toFixed(2)}x` : '—'}</b>
+              <small>{quote ? `≈ ${parseFloat(quote.maxPayout) / 1e18} MON` : ''}</small>
             </div>
-            <button className={`lock-prediction ${locked ? 'is-locked' : ''}`} onClick={locked ? reset : undefined} disabled={!locked}>
-              <LockKeyhole size={16} /> {locked ? 'RESET DEMO ROUND' : 'LOCK PREDICTION'}
+            <button 
+              className={`lock-prediction ${locked ? 'is-locked' : ''}`} 
+              onClick={handleLockPrediction} 
+              disabled={!selection && !locked}
+            >
+              <LockKeyhole size={16} /> 
+              {isLoadingQuote ? 'FETCHING QUOTE...' : (locked ? 'RESET DEMO ROUND' : 'LOCK PREDICTION')}
             </button>
             <p className="lock-note">{locked ? 'Prediction locked. Demo round in progress.' : 'Locks in your bet and starts the round.'}</p>
           </section>
